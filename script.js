@@ -24,15 +24,6 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const detectedLetter = document.getElementById('detected-letter');
 
-function getAngle(a, b, c) {
-  // Calculate angle at point b between points a and c
-  const ab = { x: b.x - a.x, y: b.y - a.y };
-  const cb = { x: b.x - c.x, y: b.y - c.y };
-  const dot = ab.x * cb.x + ab.y * cb.y;
-  const cross = ab.x * cb.y - ab.y * cb.x;
-  return Math.abs(Math.atan2(cross, dot) * (180 / Math.PI));
-}
-
 function classifyLetter(lm) {
   
   const indexUp  = lm[8].y  < lm[6].y;
@@ -42,109 +33,92 @@ function classifyLetter(lm) {
   const thumbOut = lm[4].x  < lm[3].x;
 
   // --- new bend angle calculations ---
-  const indexBend  = getAngle(lm[5], lm[6], lm[8]);
-  const middleBend = getAngle(lm[9], lm[10], lm[12]);
-  const ringBend   = getAngle(lm[13], lm[14], lm[16]);
-  const pinkyBend  = getAngle(lm[17], lm[18], lm[20]);
-  const thumbIndex = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+  const indexCurl  = Math.hypot(lm[8].x - lm[5].x, lm[8].y - lm[5].y);
+const middleCurl = Math.hypot(lm[12].x - lm[9].x, lm[12].y - lm[9].y);
+const ringCurl   = Math.hypot(lm[16].x - lm[13].x, lm[16].y - lm[13].y);
+const pinkyCurl  = Math.hypot(lm[20].x - lm[17].x, lm[20].y - lm[17].y);
+const thumbIndex = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+const thumbCurl  = Math.hypot(lm[3].x - lm[0].x, lm[3].y - lm[0].y);
+
   
 
-  // A: fist, thumb on side
-  if (!indexUp && !middleUp && !ringUp && !pinkyUp && lm[4].y < lm[9].y) return 'A';
+  // A: fist, thumb up on side
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && lm[4].y < lm[9].y) return 'A';
 
-  // B: all fingers up, thumb tucked
-  if (indexUp && middleUp && ringUp && pinkyUp && !thumbOut) return 'B';
+// B: all fingers straight, thumb tucked
+if (indexCurl > 0.10 && middleCurl > 0.10 && ringCurl > 0.10 && pinkyCurl > 0.10 && !thumbOut) return 'B';
 
-  // C: fingers curved, not fully up or down
-  if (lm[8].y < lm[5].y && lm[8].y > lm[6].y &&
-      lm[12].y < lm[9].y && lm[12].y > lm[10].y) return 'C';
+// C: all fingers half curled
+if (indexCurl > 0.05 && indexCurl < 0.15 && middleCurl > 0.05 && middleCurl < 0.15 && ringCurl > 0.05 && ringCurl < 0.15 && pinkyCurl > 0.05 && pinkyCurl < 0.15) return 'C';
 
-  // D: index up, thumb touches middle
-  if (indexUp && !middleUp && !ringUp && !pinkyUp &&
-      Math.abs(lm[4].x - lm[12].x) < 0.05) return 'D';
+// D: index straight, others curled, thumb touches middle
+if (indexCurl > 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && thumbIndex < 0.06) return 'D';
 
-  // E: all fingers curled, thumb tucked under
-  if (!indexUp && !middleUp && !ringUp && !pinkyUp &&
-      lm[4].y > lm[9].y) return 'E';
+// E: all fingers curled
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && lm[4].y > lm[9].y) return 'E';
 
-  // F: index+thumb pinch, middle/ring/pinky up
-  if (!indexUp && middleUp && ringUp && pinkyUp &&
-      Math.abs(lm[4].x - lm[8].x) < 0.05) return 'F';
+// F: index curled, others straight, thumb pinches index
+if (indexCurl < 0.10 && middleCurl > 0.10 && ringCurl > 0.10 && pinkyCurl > 0.10 && thumbIndex < 0.06) return 'F';
 
-  // G: index pointing sideways, thumb out
-  if (Math.abs(lm[8].y - lm[5].y) < 0.04 && thumbOut &&
-      !middleUp && !ringUp && !pinkyUp) return 'G';
+// G: index pointing sideways, thumb out
+if (indexCurl > 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && thumbOut && Math.abs(lm[8].y - lm[5].y) < 0.04) return 'G';
 
-  // H: index and middle pointing sideways
-  if (Math.abs(lm[8].y - lm[5].y) < 0.04 &&
-      Math.abs(lm[12].y - lm[9].y) < 0.04 &&
-      !ringUp && !pinkyUp) return 'H';
+// H: index and middle pointing sideways
+if (indexCurl > 0.10 && middleCurl > 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && Math.abs(lm[8].y - lm[5].y) < 0.04) return 'H';
 
-  // I: pinky only up
-  if (!indexUp && !middleUp && !ringUp && pinkyUp && !thumbOut) return 'I';
+// I: pinky straight, others curled
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl > 0.10 && !thumbOut) return 'I';
 
-  // J: approximate as I (J has motion)
-  if (!indexUp && !middleUp && !ringUp && pinkyUp && thumbOut) return 'J';
+// J: like I with thumb out
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl > 0.10 && thumbOut) return 'J';
 
-  // K: index and middle up, thumb out between them
-  if (indexUp && middleUp && !ringUp && !pinkyUp && thumbOut) return 'K';
+// K: index and middle straight, thumb out
+if (indexCurl > 0.10 && middleCurl > 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && thumbOut) return 'K';
 
-  // L: index up, thumb out
-  if (indexUp && !middleUp && !ringUp && !pinkyUp && thumbOut) return 'L';
+// L: index straight, thumb out
+if (indexCurl > 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && thumbOut) return 'L';
 
-  // M: three fingers curled over thumb
-  if (!indexUp && !middleUp && !ringUp && !pinkyUp &&
-      lm[8].y > lm[4].y && lm[12].y > lm[4].y && lm[16].y > lm[4].y) return 'M';
+// M: three fingers over thumb
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && lm[8].y > lm[4].y && lm[12].y > lm[4].y && lm[16].y > lm[4].y) return 'M';
 
-  // N: two fingers curled over thumb
-  if (!indexUp && !middleUp && !ringUp && !pinkyUp &&
-      lm[8].y > lm[4].y && lm[12].y > lm[4].y) return 'N';
+// N: two fingers over thumb
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && lm[8].y > lm[4].y && lm[12].y > lm[4].y && lm[16].y < lm[4].y) return 'N';
 
-  // O: thumb and index tips close together, all fingers curved
-  if (Math.abs(lm[4].x - lm[8].x) < 0.04 &&
-      Math.abs(lm[4].y - lm[8].y) < 0.04 &&
-      !indexUp && !middleUp) return 'O';
+// O: all fingers curved, thumb meets index tip
+if (indexCurl > 0.05 && indexCurl < 0.15 && middleCurl > 0.05 && middleCurl < 0.15 && thumbIndex < 0.06) return 'O';
 
-  // P: like K but fingers pointing downward
-  if (lm[8].y > lm[6].y && lm[12].y > lm[10].y &&
-      !ringUp && !pinkyUp && thumbOut) return 'P';
+// P: index and middle pointing down, thumb out
+if (lm[8].y > lm[5].y && lm[12].y > lm[9].y && ringCurl < 0.10 && pinkyCurl < 0.10 && thumbOut) return 'P';
 
-  // Q: like G but pointing downward
-  if (lm[8].y > lm[5].y && thumbOut &&
-      !middleUp && !ringUp && !pinkyUp) return 'Q';
+// Q: index pointing down, thumb out
+if (lm[8].y > lm[5].y && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && thumbOut) return 'Q';
 
-  // R: index and middle up and crossed
-  if (indexUp && middleUp && !ringUp && !pinkyUp &&
-      Math.abs(lm[8].x - lm[12].x) < 0.02) return 'R';
+// R: index and middle straight and crossed
+if (indexCurl > 0.10 && middleCurl > 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && !thumbOut && Math.abs(lm[8].x - lm[12].x) < 0.02) return 'R';
 
-  // S: fist, thumb over fingers
-  if (!indexUp && !middleUp && !ringUp && !pinkyUp &&
-      lm[4].y < lm[8].y && lm[4].x > lm[8].x) return 'S';
+// S: fist, thumb over fingers
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && lm[4].x > lm[8].x) return 'S';
 
-  // T: thumb between index and middle
-  if (!indexUp && !middleUp && !ringUp && !pinkyUp &&
-      lm[4].y < lm[6].y && lm[4].x > lm[5].x) return 'T';
+// T: thumb between index and middle
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && lm[4].y < lm[6].y && lm[4].x > lm[5].x) return 'T';
 
-  // U: index and middle up, close together
-  if (indexUp && middleUp && !ringUp && !pinkyUp &&
-      Math.abs(lm[8].x - lm[12].x) < 0.04) return 'U';
+// U: index and middle straight, close together
+if (indexCurl > 0.10 && middleCurl > 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && !thumbOut && Math.abs(lm[8].x - lm[12].x) < 0.04) return 'U';
 
-  // V: index and middle up, spread apart
-  if (indexUp && middleUp && !ringUp && !pinkyUp &&
-      Math.abs(lm[8].x - lm[12].x) >= 0.04) return 'V';
+// V: index and middle straight, spread apart
+if (indexCurl > 0.10 && middleCurl > 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && !thumbOut && Math.abs(lm[8].x - lm[12].x) >= 0.04) return 'V';
 
-  // W: index, middle, ring up
-  if (indexUp && middleUp && ringUp && !pinkyUp) return 'W';
+// W: index, middle, ring straight
+if (indexCurl > 0.10 && middleCurl > 0.10 && ringCurl > 0.10 && pinkyCurl < 0.10) return 'W';
 
-  // X: index finger hooked
-  if (lm[8].y > lm[7].y && lm[8].y < lm[5].y &&
-      !middleUp && !ringUp && !pinkyUp) return 'X';
+// X: index hooked
+if (indexCurl > 0.05 && indexCurl < 0.15 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10) return 'X';
 
-  // Y: thumb and pinky out
-  if (!indexUp && !middleUp && !ringUp && pinkyUp && thumbOut) return 'Y';
+// Y: thumb and pinky out
+if (indexCurl < 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl > 0.10 && thumbOut) return 'Y';
 
-  // Z: approximate as index pointing (Z has motion)
-  if (indexUp && !middleUp && !ringUp && !pinkyUp && !thumbOut) return 'Z';
+// Z: index pointing (approximated)
+if (indexCurl > 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10 && !thumbOut) return 'Z';
 
   return '?';
 }
