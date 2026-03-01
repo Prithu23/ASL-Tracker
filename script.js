@@ -123,37 +123,25 @@ if (indexCurl > 0.10 && middleCurl < 0.10 && ringCurl < 0.10 && pinkyCurl < 0.10
   return '?';
 }
 
-hands.onResults(function(results) {
+hands.onResults(async function(results) {
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  if (results.multiHandLandmarks.length > 0) {
-    const landmarks = results.multiHandLandmarks[0];
-    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#a8ff78', lineWidth: 2 });
-    drawLandmarks(ctx, landmarks, { color: '#ffffff', radius: 4 });
+  const lm = results.multiHandLandmarks[0];
+const landmarks3D = lm.map(p => [p.x, p.y, p.z]);
+const gesture = await GE.estimate(landmarks3D, 8.5);
 
-    const lm = results.multiHandLandmarks[0];
-    const letter = classifyLetter(lm);
-    // Check if each finger is pointing up
-    // We compare fingertip y position to the middle knuckle y position
-    // Remember: smaller y = higher on screen = finger is UP
-    const indexUp  = lm[8].y  < lm[6].y;
-    const middleUp = lm[12].y < lm[10].y;
-    const ringUp   = lm[16].y < lm[14].y;
-    const pinkyUp  = lm[20].y < lm[18].y;
-    const thumbOut = lm[4].x  < lm[3].x;
-
-    console.log('Index:', indexUp, '| Middle:', middleUp, '| Ring:', ringUp, '| Pinky:', pinkyUp, '| Thumb:', thumbOut);
-    console.log('Detected:', letter);
-    detectedLetter.textContent = letter;
-  }
+if (gesture.gestures.length > 0) {
+  const letter = gesture.gestures[0].name;
+  detectedLetter.textContent = letter;
+} else {
+  detectedLetter.textContent = '?';
+}
 });
 
-// ── Step 3: Start the camera through MediaPipe ────────
 const camera = new Camera(video, {
   onFrame: async () => {
-    // Send each video frame to MediaPipe for processing
     await hands.send({ image: video });
   },
   width: 640,
