@@ -1,63 +1,62 @@
-// script.js
+const MODEL_URL = 'https://teachablemachine.withgoogle.com/models/jm_AFYa3z/';
 
-const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const detectedLetter = document.getElementById('detected-letter');
+let model, webcam;
 
-const hands = new Hands({
-  locateFile: (file) => {
-    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+let statusEl, detectedLetter, confidenceLabel;
+
+async function init() {
+  statusEl        = document.getElementById('status');
+  detectedLetter  = document.getElementById('detected-letter');
+  confidenceLabel = document.getElementById('confidence-label');
+
+  try {
+    statusEl.textContent = 'Loading model...';
+    model = await tmImage.load(
+      MODEL_URL + 'model.json',
+      MODEL_URL + 'metadata.json'
+    );
+    statusEl.textContent = 'Model loaded! Starting webcam...';
+
+    webcam = new tmImage.Webcam(400, 400, true); // width, height, flip
+    await webcam.setup();
+    await webcam.play();
+
+    document.getElementById('camera-panel').appendChild(webcam.canvas);
+
+    statusEl.textContent = 'Ready — show your hand!';
+    requestAnimationFrame(loop);
+
+  } catch (err) {
+    statusEl.textContent = 'Error: ' + err.message;
+    console.error(err);
   }
-});
-
-hands.setOptions({
-  maxNumHands: 1,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.7,
-  minTrackingConfidence: 0.6
-});
-
-const GE = new fp.GestureEstimator(allGestures);
-
-function isThumbOverFingers(lm) {
-  const thumbToIndex = Math.hypot(lm[4].x - lm[5].x, lm[4].y - lm[5].y);
-  return thumbToIndex < 0.08;
 }
 
-hands.onResults(async function(results) {
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+async function loop() {
+  webcam.update();
+  await predict();
+  requestAnimationFrame(loop);
+}
 
-  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-    const landmarks = results.multiHandLandmarks[0];
-    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#a8ff78', lineWidth: 2 });
-    drawLandmarks(ctx, landmarks, { color: '#ffffff', radius: 4 });
+async function predict() {
+  const predictions = await model.predict(webcam.canvas);
 
-    const lm = results.multiHandLandmarks[0];
-    const landmarks3D = lm.map(p => [p.x, p.y, p.z]);
-    const gesture = await GE.estimate(landmarks3D, 5);
-
-    console.log('gestures found:', gesture.gestures.length);
-
-    let letter = gesture.gestures.length > 0 ? gesture.gestures[0].name : '?';
-
-    if (letter === 'E' || letter === 'S') {
-      letter = isThumbOverFingers(lm) ? 'S' : 'E';
+  // Find highest confidence class
+  let best = predictions[0];
+  for (let i = 1; i < predictions.length; i++) {
+    if (predictions[i].probability > best.probability) {
+      best = predictions[i];
     }
-
-    detectedLetter.textContent = letter;
   }
-});
 
-const camera = new Camera(video, {
-  onFrame: async () => {
-    await hands.send({ image: video });
-  },
-  width: 640,
-  height: 480
-});
+  if (best.probability > 0.7) {
+    detectedLetter.textContent  = best.className;
+    confidenceLabel.textContent = Math.round(best.probability * 100) + '% confidence';
+  } else {
+    detectedLetter.textContent  = '?';
+    confidenceLabel.textContent = 'No clear gesture';
+  }
+}
 
-camera.start();
-console.log('Camera started!');
+// Wait for full page load before running
+window.addEventListener('load', init);
