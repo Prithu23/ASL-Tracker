@@ -1,8 +1,29 @@
-const MODEL_URL = 'https://teachablemachine.withgoogle.com/models/jm_AFYa3z/';
+const MODEL_URL = 'https://teachablemachine.withgoogle.com/models/zrz8jxvH0/';
 
 let model, webcam;
-
 let statusEl, detectedLetter, confidenceLabel;
+
+// ── Smoothing buffer ──────────────────────────────────────────────────────────
+const BUFFER_SIZE = 10;   // how many frames to look at
+const CONFIRM_THRESHOLD = 7; // how many must agree
+let predictionBuffer = [];
+
+function getStablePrediction(className) {
+  predictionBuffer.push(className);
+  if (predictionBuffer.length > BUFFER_SIZE) {
+    predictionBuffer.shift(); // drop oldest
+  }
+
+  // Count votes
+  const counts = {};
+  for (const c of predictionBuffer) {
+    counts[c] = (counts[c] || 0) + 1;
+  }
+
+  // Only return a letter if it dominates the buffer
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return top[1] >= CONFIRM_THRESHOLD ? top[0] : null;
+}
 
 async function init() {
   statusEl        = document.getElementById('status');
@@ -17,7 +38,7 @@ async function init() {
     );
     statusEl.textContent = 'Model loaded! Starting webcam...';
 
-    webcam = new tmImage.Webcam(400, 400, true); // width, height, flip
+    webcam = new tmImage.Webcam(400, 400, true);
     await webcam.setup();
     await webcam.play();
 
@@ -41,7 +62,6 @@ async function loop() {
 async function predict() {
   const predictions = await model.predict(webcam.canvas);
 
-  // Find highest confidence class
   let best = predictions[0];
   for (let i = 1; i < predictions.length; i++) {
     if (predictions[i].probability > best.probability) {
@@ -50,13 +70,17 @@ async function predict() {
   }
 
   if (best.probability > 0.7) {
-    detectedLetter.textContent  = best.className;
-    confidenceLabel.textContent = Math.round(best.probability * 100) + '% confidence';
+    const stable = getStablePrediction(best.className);
+    if (stable) {
+      detectedLetter.textContent  = stable;
+      confidenceLabel.textContent = Math.round(best.probability * 100) + '% confidence';
+    }
+    // if not stable yet, keep showing last confirmed letter
   } else {
+    predictionBuffer = []; // reset buffer if confidence drops
     detectedLetter.textContent  = '?';
     confidenceLabel.textContent = 'No clear gesture';
   }
 }
 
-// Wait for full page load before running
 window.addEventListener('load', init);
